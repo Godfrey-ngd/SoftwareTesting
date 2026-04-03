@@ -8,10 +8,16 @@ class EquivalencePartition(BaseModel):
     description: str
     valid: bool
 
+    class Config:
+        extra = "forbid"
+
 
 class BoundaryValue(BaseModel):
     variable: str
     values: List[Any]
+
+    class Config:
+        extra = "forbid"
 
 
 class TestCase(BaseModel):
@@ -20,12 +26,18 @@ class TestCase(BaseModel):
     inputs: Dict[str, Any]
     expected: str
 
+    class Config:
+        extra = "forbid"
+
 
 class GenerateRequest(BaseModel):
     requirements: str = Field(min_length=1)
     prompt_version: str = "v1"
     model: str = "gpt-4o-mini"
     temperature: float = 0.2
+
+    class Config:
+        extra = "forbid"
 
 
 class GenerateResponse(BaseModel):
@@ -34,3 +46,6 @@ class GenerateResponse(BaseModel):
     boundary_values: List[BoundaryValue]
     test_cases: List[TestCase]
     notes: str = ""
+
+    class Config:
+        extra = "forbid"

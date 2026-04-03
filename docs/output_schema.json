@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LLM Black-Box Testing Output",
+  "type": "object",
+  "required": [
+    "input_variables",
+    "equivalence_partitions",
+    "boundary_values",
+    "test_cases",
+    "notes"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "input_variables": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "equivalence_partitions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "description", "valid"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "description": { "type": "string" },
+          "valid": { "type": "boolean" }
+        }
+      }
+    },
+    "boundary_values": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["variable", "values"],
+        "additionalProperties": false,
+        "properties": {
+          "variable": { "type": "string" },
+          "values": { "type": "array" }
+        }
+      }
+    },
+    "test_cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "scenario", "inputs", "expected"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "scenario": { "type": "string" },
+          "inputs": { "type": "object" },
+          "expected": { "type": "string" }
+        }
+      }
+    },
+    "notes": { "type": "string" }
+  }
+}
