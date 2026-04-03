@@ -25,11 +25,12 @@ buttonEl.addEventListener("click", async () => {
     prompt_version: promptEl.value,
   };
 
-  setStatus("Generating JSON...", false);
+  setStatus("Streaming JSON...", false);
   buttonEl.disabled = true;
+  outputEl.textContent = "";
 
   try {
-    const response = await fetch("/api/generate", {
+    const response = await fetch("/api/generate-stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -40,9 +41,48 @@ buttonEl.addEventListener("click", async () => {
       throw new Error(errorText || "Request failed");
     }
 
-    const data = await response.json();
-    outputEl.textContent = JSON.stringify(data, null, 2);
-    setStatus("Done.");
+    if (!response.body) {
+      throw new Error("Streaming not supported by the browser");
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const parts = buffer.split("\n\n");
+      buffer = parts.pop() || "";
+
+      for (const part of parts) {
+        const lines = part.split("\n");
+        let eventType = "message";
+        let dataText = "";
+
+        for (const line of lines) {
+          if (line.startsWith("event:")) {
+            eventType = line.replace("event:", "").trim();
+          } else if (line.startsWith("data:")) {
+            dataText += line.replace("data:", "").trim();
+          }
+        }
+
+        if (!dataText) continue;
+        const payload = JSON.parse(dataText);
+
+        if (eventType === "chunk") {
+          outputEl.textContent += payload.text;
+        } else if (eventType === "done") {
+          outputEl.textContent = JSON.stringify(payload.data, null, 2);
+          setStatus("Done.");
+        } else if (eventType === "error") {
+          throw new Error(payload.error || "Streaming error");
+        }
+      }
+    }
   } catch (error) {
     outputEl.textContent = "{}";
     setStatus(`Error: ${error.message}`, true);

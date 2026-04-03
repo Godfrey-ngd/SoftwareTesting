@@ -1,4 +1,7 @@
+import json
+
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 
 from app.schemas.output import GenerateRequest, GenerateResponse
 from app.services.llm_client import LLMClient
@@ -24,6 +27,45 @@ def generate(request: GenerateRequest) -> GenerateResponse:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     return GenerateResponse(**_normalize_output(data))
+
+
+@router.post("/generate-stream")
+def generate_stream(request: GenerateRequest) -> StreamingResponse:
+    prompt = PromptManager.get_prompt(request.prompt_version, request.requirements)
+    client = LLMClient()
+
+    def event_stream():
+        chunks = []
+        try:
+            yield ": init\n\n"
+            for chunk in client.stream_text(
+                prompt=prompt,
+                model=request.model,
+                temperature=request.temperature,
+            ):
+                chunks.append(chunk)
+                payload = json.dumps({"text": chunk})
+                yield f"event: chunk\ndata: {payload}\n\n"
+
+            full_text = "".join(chunks)
+            data = client._parse_json(full_text)
+            normalized = _normalize_output(data)
+            payload = json.dumps({"data": normalized})
+            yield f"event: done\ndata: {payload}\n\n"
+        except Exception as exc:
+            payload = json.dumps({"error": str(exc)})
+            yield f"event: error\ndata: {payload}\n\n"
+
+    headers = {
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no",
+    }
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers=headers,
+    )
 
 
 def _normalize_output(data: dict) -> dict:

@@ -50,6 +50,31 @@ class LLMClient:
             raise last_error
         raise RuntimeError("LLM request failed without an error")
 
+    def stream_text(
+        self,
+        prompt: str,
+        model: str,
+        temperature: float,
+    ):
+        response = self.client.chat.completions.create(
+            model=model,
+            temperature=temperature,
+            stream=True,
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": prompt},
+            ],
+        )
+
+        for event in response:
+            choices = getattr(event, "choices", None) or []
+            if not choices:
+                continue
+            delta = getattr(choices[0], "delta", None)
+            content = getattr(delta, "content", None) if delta else None
+            if content:
+                yield content
+
     @staticmethod
     def _parse_json(text: str) -> Dict[str, Any]:
         try:
