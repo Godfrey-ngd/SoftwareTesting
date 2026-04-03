@@ -8,4 +8,11 @@ templates = Jinja2Templates(directory="app/templates")
 
 @router.get("/", response_class=HTMLResponse)
 def index(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse("index.html", {"request": request})
+    context = {"request": request}
+
+    try:
+        return templates.TemplateResponse("index.html", context)
+    except Exception as exc:
+        if "unhashable type" in str(exc):
+            return templates.TemplateResponse(request, "index.html", context)
+        raise

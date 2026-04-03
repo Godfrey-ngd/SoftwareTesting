@@ -11,7 +11,11 @@ class LLMClient:
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             raise ValueError("OPENAI_API_KEY is not set")
-        self.client = OpenAI(api_key=api_key)
+        base_url = os.getenv("OPENAI_BASE_URL")
+        if base_url:
+            self.client = OpenAI(api_key=api_key, base_url=base_url)
+        else:
+            self.client = OpenAI(api_key=api_key)
 
     def generate_json(
         self,
@@ -24,13 +28,16 @@ class LLMClient:
 
         for attempt in range(max_retries + 1):
             try:
-                response = self.client.responses.create(
+                response = self.client.chat.completions.create(
                     model=model,
-                    input=prompt,
                     temperature=temperature,
+                    messages=[
+                        {"role": "system", "content": "You are a helpful assistant."},
+                        {"role": "user", "content": prompt},
+                    ],
                 )
 
-                text = response.output_text or ""
+                text = response.choices[0].message.content or ""
                 return self._parse_json(text)
             except Exception as exc:
                 last_error = exc
