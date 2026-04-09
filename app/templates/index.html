@@ -35,16 +35,26 @@
     <main class="workspace">
       <section class="panel">
         <div class="panel-header">
-          <h2>Requirements Input</h2>
-          <p>Paste the requirement text and tune generation settings.</p>
+          <h2>Input</h2>
+          <p>Choose input type + technique, then generate structured JSON.</p>
         </div>
-        <textarea
-          id="requirements"
-          placeholder="Paste requirements here..."
-          rows="16"
-        ></textarea>
-
         <div class="controls">
+          <div class="field">
+            <label for="inputType">Input Type</label>
+            <select id="inputType">
+              <option value="requirements" selected>requirements</option>
+              <option value="codebase">codebase</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="technique">Technique</label>
+            <select id="technique">
+              <option value="ep_bva" selected>ep_bva</option>
+              <option value="decision_table">decision_table</option>
+              <option value="state_transition">state_transition</option>
+              <option value="combinatorial">combinatorial</option>
+            </select>
+          </div>
           <div class="field">
             <label for="model">Model</label>
             <input id="model" value="gpt-4o-mini" />
@@ -59,9 +69,20 @@
               <option value="v1">v1</option>
               <option value="v2">v2</option>
               <option value="v3">v3</option>
+              <option value="v4" selected>v4</option>
             </select>
           </div>
         </div>
+        <textarea
+          id="requirements"
+          placeholder="Paste requirements here..."
+          rows="16"
+        ></textarea>
+        <textarea
+          id="codeContext"
+          placeholder="Paste code/docs context here..."
+          rows="16"
+        ></textarea>
 
         <button id="generateBtn">Generate JSON</button>
         <div id="status" class="status"></div>
@@ -76,7 +97,18 @@
   "input_variables": [],
   "equivalence_partitions": [],
   "boundary_values": [],
+  "conditions": null,
+  "actions": null,
+  "rules": null,
+  "factors": null,
+  "constraints": null,
+  "coverage_strategy": null,
+  "coverage_summary": null,
+  "states": null,
+  "events": null,
+  "transitions": null,
   "test_cases": [],
+  "meta": null,
   "notes": ""
 }</pre>
       </section>

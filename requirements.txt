@@ -4,3 +4,5 @@ jinja2
 pydantic
 openai
 python-dotenv
+pytest
+httpx

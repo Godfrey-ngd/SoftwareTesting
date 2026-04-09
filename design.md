@@ -2,7 +2,17 @@
 
 ## 1. Goal and Scope
 
-This tool provides a lightweight framework for black-box testing using an LLM. It accepts requirement text, extracts input variables and constraints, and generates test cases via equivalence partitioning (EP) and boundary value analysis (BVA). The focus is on tool architecture, API integration, and prompt iteration, not full end-to-end test execution.
+This tool provides a lightweight framework for black-box testing using an LLM. It accepts:
+- (1) requirement text, or
+- (2) testing codebase/module context (docs/snippets)
+
+and generates test artifacts using selectable black-box techniques:
+- Equivalence Partitioning (EP) + Boundary Value Analysis (BVA)
+- Decision Table Testing
+- State Transition Testing model generator
+- Testing combinations of inputs (pairwise-focused)
+
+The focus is on tool architecture, prompt iteration, and experimental analysis (coverage/accuracy/generalizability), not full end-to-end test execution.
 
 ## 2. Key Decisions
 
@@ -20,9 +30,9 @@ This tool provides a lightweight framework for black-box testing using an LLM. I
 
 ## 4. Functional Requirements
 
-- FR-1: Accept requirement text as input.
+- FR-1: Accept requirement text OR codebase/module context as input.
 - FR-2: Generate structured JSON output.
-- FR-3: Support EP and BVA (at minimum).
+- FR-3: Support EP+BVA at minimum; optionally support decision table / state transition / combinatorial.
 - FR-4: Support prompt versioning and iteration notes.
 - FR-5: Provide a minimal UI to validate the API.
 
@@ -39,6 +49,9 @@ This tool provides a lightweight framework for black-box testing using an LLM. I
 Request JSON:
 {
   "requirements": "...",
+  "code_context": "...",
+  "input_type": "requirements",
+  "technique": "ep_bva",
   "prompt_version": "v1",
   "model": "gpt-4o-mini",
   "temperature": 0.2
@@ -70,6 +83,13 @@ Response JSON:
       "expected": "..."
     }
   ],
+  "meta": {
+    "input_type": "requirements",
+    "technique": "ep_bva",
+    "prompt_version": "v4",
+    "model": "gpt-4o-mini",
+    "temperature": 0.2
+  },
   "notes": "..."
 }
 
@@ -78,6 +98,7 @@ Response JSON:
 - V1: Extract variables + EP + BVA + test cases.
 - V2: Force JSON schema and explicit valid/invalid partitions.
 - V3: Add self-check (missing boundaries, invalid cases, contradictions).
+- V4: Add input_type + technique selection (EP/BVA, decision table, state transition, combinatorial) with stricter JSON-only output.
 
 ## 8. Example Prompt (V1)
 
@@ -96,6 +117,15 @@ Requirement: {requirement_text}
 - Coverage: percentage of identified variables covered by test cases.
 - Accuracy: manual review of invalid or inconsistent cases.
 - Generalizability: test on 2-3 different scenarios.
+
+Suggested measurable checklist (for report):
+- Variable coverage: \(|\{v \in input\_variables : v \text{ appears in any test case inputs}\}| / |input\_variables|\)
+- Negative-case coverage: at least 1 invalid test per major constraint
+- Technique fidelity:
+  - EP/BVA: partitions include valid+invalid; boundary sets include below/at/above
+  - Decision table: rule columns covered by tests (summarized in notes)
+  - State transition: transitions + invalid transitions covered (summarized in notes)
+  - Combinatorial: pairwise-focused across selected variables (value sets summarized in notes)
 
 ## 10. Team Handoff Notes
 

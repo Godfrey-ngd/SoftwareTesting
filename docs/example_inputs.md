@@ -13,6 +13,11 @@ Functional Requirements:
 - Payment constraints: total inserted must be >= item price; change returned up to $5.00; reject if change > $5.00.
 - Inventory constraints: an item may become out of stock during payment.
 
+Suggested techniques:
+- ep_bva
+- decision_table
+- state_transition
+
 ## Example 2: Library Borrowing
 
 System Overview:
@@ -23,6 +28,11 @@ Functional Requirements:
 - A loan period is 30 days; overdue books incur a daily fine of $0.50.
 - Books marked as "Reference" cannot be borrowed.
 - Users with unpaid fines over $10.00 cannot borrow new books.
+
+Suggested techniques:
+- ep_bva
+- decision_table
+- state_transition
 
 ## Example 3: Ticket Booking
 
@@ -35,3 +45,32 @@ Functional Requirements:
 - Payment methods: credit card or mobile wallet.
 - Booking is rejected if total price exceeds $1,000.
 - Refunds allowed within 24 hours after purchase.
+
+Suggested techniques:
+- ep_bva
+- decision_table
+- combinatorial
+
+## Example 4: Codebase Context (API Snippet)
+
+Use this example with:
+- input_type: `codebase`
+- technique: `decision_table` (or `ep_bva`)
+
+Code/Docs Context:
+
+```text
+Endpoint: POST /checkout
+Fields:
+- item_price: decimal, required, must be between 1.00 and 999.99
+- quantity: int, required, must be between 1 and 6
+- coupon_code: string, optional, if provided must match regex ^[A-Z0-9]{6}$
+- payment_method: enum {card, wallet}
+Rules:
+- total = item_price * quantity
+- If payment_method=wallet then total must be <= 500.00 (otherwise reject)
+- If coupon_code is provided and valid, discount = 10% (round to cents)
+Responses:
+- 200 OK: {order_id, total, discount}
+- 400 Bad Request: validation error
+```

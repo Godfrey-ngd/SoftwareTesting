@@ -1,4 +1,7 @@
 const requirementsEl = document.getElementById("requirements");
+const codeContextEl = document.getElementById("codeContext");
+const inputTypeEl = document.getElementById("inputType");
+const techniqueEl = document.getElementById("technique");
 const modelEl = document.getElementById("model");
 const tempEl = document.getElementById("temperature");
 const promptEl = document.getElementById("promptVersion");
@@ -6,20 +9,47 @@ const outputEl = document.getElementById("output");
 const statusEl = document.getElementById("status");
 const buttonEl = document.getElementById("generateBtn");
 
+function syncInputVisibility() {
+  const inputType = inputTypeEl?.value || "requirements";
+  if (!requirementsEl || !codeContextEl) return;
+
+  const isReq = inputType === "requirements";
+  requirementsEl.style.display = isReq ? "block" : "none";
+  codeContextEl.style.display = isReq ? "none" : "block";
+}
+
 function setStatus(message, isError = false) {
   statusEl.textContent = message;
   statusEl.style.color = isError ? "#ffb4b4" : "#b6bed9";
 }
 
+inputTypeEl?.addEventListener("change", () => {
+  syncInputVisibility();
+  setStatus("");
+});
+
+syncInputVisibility();
+
 buttonEl.addEventListener("click", async () => {
-  const requirements = requirementsEl.value.trim();
-  if (!requirements) {
+  const requirements = (requirementsEl?.value || "").trim();
+  const codeContext = (codeContextEl?.value || "").trim();
+  const inputType = inputTypeEl?.value || "requirements";
+  const technique = techniqueEl?.value || "ep_bva";
+
+  if (inputType === "requirements" && !requirements) {
     setStatus("Please paste requirements before generating.", true);
+    return;
+  }
+  if (inputType === "codebase" && !codeContext) {
+    setStatus("Please paste code/docs context before generating.", true);
     return;
   }
 
   const payload = {
     requirements,
+    code_context: codeContext,
+    input_type: inputType,
+    technique,
     model: modelEl.value.trim() || "gpt-4o-mini",
     temperature: parseFloat(tempEl.value || "0.2"),
     prompt_version: promptEl.value,
