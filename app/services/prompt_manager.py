@@ -179,3 +179,108 @@ Code context:
             requirement_text=requirement_text or "",
             code_context=code_context or "",
         )
+
+    @classmethod
+    def get_prompt_ecp_bva_only(
+        cls,
+        input_type: str,
+        requirement_text: str,
+        code_context: str,
+    ) -> str:
+        prompt = """You are a black-box testing assistant.
+
+You will be given either:
+- requirement text, or
+- a testing codebase/module snippet (may contain API endpoints, validations, constraints).
+
+Your task is to perform Equivalence Partitioning and Boundary Value Analysis (EP_BVA) ONLY.
+Output MUST be a single JSON object containing ONLY input_variables, equivalence_partitions, boundary_values, and notes.
+Do NOT generate test cases in this step.
+
+Hard rules:
+- Include both valid and invalid cases. Invalid means violating at least one explicit constraint.
+- Every boundary value must be derived from a specific numeric/count/time/length boundary stated or implied.
+- Do NOT invent system features that are not in the input. If something is unknown, state assumptions in notes and keep tests conservative.
+- Return strict JSON only (no markdown, no extra text).
+
+Step 1 - EP_BVA Analysis:
+
+1) Identify ALL input variables and constraints:
+   - In input_variables, list variable names.
+   - In notes, add a "constraints:" section describing for each variable: type, allowed range/enum, and dependencies.
+
+2) Equivalence partitions (EP):
+   - For EACH variable, create >=1 valid EP and >=1 invalid EP (if invalid inputs exist).
+   - Each EP MUST include: id, description, valid, representative_values (>=1 concrete value).
+   - Include robustness EP where applicable: missing/null, empty string, wrong type, out-of-range, invalid format/charset.
+   - Cross-field/business rules MUST be modeled as combined EP entries (valid=false) with representative_values as a full input object demonstrating the violation.
+
+3) Boundary value analysis (BVA):
+   - For ordered types (number/length/date/time/money/count), for each variable generate rows for:
+     min-1, min, min+1, max-1, max, max+1 (if applicable).
+     Each boundary_values row MUST include: variable, boundary_type, value, expected_valid.
+   - For enum/discrete types, include one boundary_values row per variable stating:
+     boundary_type="enum_no_ordered_boundary", value=null, expected_valid=null.
+
+4) Coverage summary:
+   - Output coverage_summary with:
+     total_equivalence_partitions, covered_partitions, total_boundary_conditions, covered_boundary_conditions, notes.
+
+Input type: {input_type}
+
+Requirement text:
+{requirement_text}
+
+Code context:
+{code_context}
+"""
+        return prompt.format(
+            input_type=input_type,
+            requirement_text=requirement_text or "",
+            code_context=code_context or "",
+        )
+
+    @classmethod
+    def get_prompt_tc_from_ecp_bva(
+        cls,
+        input_type: str,
+        requirement_text: str,
+        code_context: str,
+        ecp_bva_result: str,
+    ) -> str:
+        return f"""You are a black-box testing assistant.
+
+You will receive:
+1) The original requirement/code context
+2) Pre-computed equivalence partitions (EP) and boundary values (BVA) from a previous analysis step
+
+Your task is to generate test cases (TC) based on the provided ECP/BVA analysis.
+Output MUST be a single JSON object containing ONLY test_cases with the same structure as shown below.
+Do NOT re-generate input_variables, equivalence_partitions, or boundary_values.
+
+Hard rules:
+- Every test_case must map to at least one equivalence partition and/or boundary value (mention mapping in scenario text briefly).
+- expected MUST be precise: "HTTP <code>; field=<field>; code=<error_code>" or "HTTP 201 Created".
+- Return strict JSON only (no markdown, no extra text).
+
+Step 2 - Test Case Generation:
+
+Test cases (minimal but complete):
+- Cover every valid EP at least once (success).
+- Cover every invalid EP (including cross-field EP) at least once (failure).
+- Cover every BVA row with expected_valid=true/false at least once with a dedicated case.
+- scenario MUST explicitly list covered EP ids and boundary rows (variable+boundary_type+value).
+- Each test case MUST include: id, scenario, inputs, expected.
+
+IMPORTANT: The test_cases must be generated based on the following pre-computed ECP/BVA analysis:
+
+{ecp_bva_result}
+
+Input type: {input_type}
+
+Requirement text:
+{requirement_text}
+
+Code context:
+{code_context}
+"""

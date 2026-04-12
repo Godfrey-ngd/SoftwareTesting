@@ -20,6 +20,8 @@ router = APIRouter()
 
 @router.post("/generate")
 def generate(request: GenerateRequest):
+    if request.technique.value == "ep_bva":
+        return _generate_ep_bva_twostep(request)
     prompt = PromptManager.get_prompt(
         version=request.prompt_version,
         input_type=request.input_type.value,
@@ -52,8 +54,116 @@ def generate(request: GenerateRequest):
     return _validate_by_technique(normalized, request.technique.value)
 
 
+def _generate_ep_bva_twostep(request: GenerateRequest) -> dict:
+    prompt_ecp_bva = PromptManager.get_prompt_ecp_bva_only(
+        input_type=request.input_type.value,
+        requirement_text=request.requirements,
+        code_context=request.code_context,
+    )
+    prompt_tc = PromptManager.get_prompt_tc_from_ecp_bva(
+        input_type=request.input_type.value,
+        requirement_text=request.requirements,
+        code_context=request.code_context,
+        ecp_bva_result="",
+    )
+    client = LLMClient()
+
+    try:
+        ecp_bva_data = client.generate_json(
+            prompt=prompt_ecp_bva,
+            model=request.model,
+            temperature=request.temperature,
+        )
+        prompt_tc_with_context = PromptManager.get_prompt_tc_from_ecp_bva(
+            input_type=request.input_type.value,
+            requirement_text=request.requirements,
+            code_context=request.code_context,
+            ecp_bva_result=json.dumps(ecp_bva_data, ensure_ascii=False),
+        )
+        tc_data = client.generate_json(
+            prompt=prompt_tc_with_context,
+            model=request.model,
+            temperature=request.temperature,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    normalized_ecp_bva = _normalize_top_level(ecp_bva_data)
+    normalized_tc = _normalize_test_cases_only(tc_data)
+
+    merged = {
+        "input_variables": normalized_ecp_bva.get("input_variables", []),
+        "equivalence_partitions": normalized_ecp_bva.get("equivalence_partitions", []),
+        "boundary_values": normalized_ecp_bva.get("boundary_values", []),
+        "test_cases": normalized_tc.get("test_cases", []),
+        "coverage_summary": normalized_ecp_bva.get("coverage_summary", {
+            "total_equivalence_partitions": 0,
+            "covered_partitions": 0,
+            "total_boundary_conditions": 0,
+            "covered_boundary_conditions": 0,
+            "notes": "",
+        }),
+        "notes": normalized_ecp_bva.get("notes", ""),
+    }
+    merged["meta"] = {
+        "technique": "ep_bva",
+        "model": request.model,
+        "temperature": float(request.temperature),
+        "input_type": request.input_type.value,
+        "prompt_version": request.prompt_version,
+    }
+    return _validate_by_technique(merged, "ep_bva")
+
+
+def _normalize_test_cases_only(data: dict) -> dict:
+    test_cases = data.get("test_cases")
+    if not isinstance(test_cases, list):
+        return data
+
+    normalized = []
+    for index, item in enumerate(test_cases):
+        if not isinstance(item, dict):
+            continue
+
+        combination = item.get("combination")
+        if isinstance(combination, dict):
+            inputs = dict(combination)
+        else:
+            inputs = dict(item.get("inputs") or {})
+
+        for key in [
+            "item_category",
+            "item_price",
+            "payment_method",
+            "inserted_amount",
+            "inventory_status",
+        ]:
+            if key in item and key not in inputs:
+                inputs[key] = item[key]
+
+        normalized.append(
+            {
+                "id": str(item.get("id") or item.get("test_case_id") or index + 1),
+                "covers_rule": item.get("covers_rule") or item.get("covers") or item.get("rule"),
+                "scenario": item.get("scenario") or item.get("description") or "",
+                "inputs": inputs,
+                "combination": combination if isinstance(combination, dict) else None,
+                "covers_pairs": item.get("covers_pairs"),
+                "expected": item.get("expected") or item.get("expected_result") or "",
+            }
+        )
+
+    data["test_cases"] = normalized
+    return data
+
+
 @router.post("/generate-stream")
 def generate_stream(request: GenerateRequest) -> StreamingResponse:
+    if request.technique.value == "ep_bva":
+        return _generate_stream_ep_bva_twostep(request)
+
     prompt = PromptManager.get_prompt(
         version=request.prompt_version,
         input_type=request.input_type.value,
@@ -88,6 +198,95 @@ def generate_stream(request: GenerateRequest) -> StreamingResponse:
                 **({"strategy": "pairwise"} if request.technique.value == "combinatorial" else {}),
             }
             validated = _validate_by_technique(normalized, request.technique.value)
+            payload = json.dumps({"data": validated})
+            yield f"event: done\ndata: {payload}\n\n"
+        except Exception as exc:
+            payload = json.dumps({"error": str(exc)})
+            yield f"event: error\ndata: {payload}\n\n"
+
+    headers = {
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no",
+    }
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers=headers,
+    )
+
+
+def _generate_stream_ep_bva_twostep(request: GenerateRequest) -> StreamingResponse:
+    client = LLMClient()
+
+    def event_stream():
+        try:
+            yield ": init\n\n"
+            yield ": step1_ecp_bva\n\n"
+
+            prompt_ecp_bva = PromptManager.get_prompt_ecp_bva_only(
+                input_type=request.input_type.value,
+                requirement_text=request.requirements,
+                code_context=request.code_context,
+            )
+            chunks1 = []
+            for chunk in client.stream_text(
+                prompt=prompt_ecp_bva,
+                model=request.model,
+                temperature=request.temperature,
+            ):
+                chunks1.append(chunk)
+                payload = json.dumps({"text": chunk, "step": "ecp_bva"})
+                yield f"event: chunk\ndata: {payload}\n\n"
+
+            full_text1 = "".join(chunks1)
+            ecp_bva_data = client._parse_json(full_text1)
+            normalized_ecp_bva = _normalize_top_level(ecp_bva_data)
+
+            yield ": step2_tc\n\n"
+
+            prompt_tc_with_context = PromptManager.get_prompt_tc_from_ecp_bva(
+                input_type=request.input_type.value,
+                requirement_text=request.requirements,
+                code_context=request.code_context,
+                ecp_bva_result=json.dumps(ecp_bva_data, ensure_ascii=False),
+            )
+            chunks2 = []
+            for chunk in client.stream_text(
+                prompt=prompt_tc_with_context,
+                model=request.model,
+                temperature=request.temperature,
+            ):
+                chunks2.append(chunk)
+                payload = json.dumps({"text": chunk, "step": "tc"})
+                yield f"event: chunk\ndata: {payload}\n\n"
+
+            full_text2 = "".join(chunks2)
+            tc_data = client._parse_json(full_text2)
+            normalized_tc = _normalize_test_cases_only(tc_data)
+
+            merged = {
+                "input_variables": normalized_ecp_bva.get("input_variables", []),
+                "equivalence_partitions": normalized_ecp_bva.get("equivalence_partitions", []),
+                "boundary_values": normalized_ecp_bva.get("boundary_values", []),
+                "test_cases": normalized_tc.get("test_cases", []),
+                "coverage_summary": normalized_ecp_bva.get("coverage_summary", {
+                    "total_equivalence_partitions": 0,
+                    "covered_partitions": 0,
+                    "total_boundary_conditions": 0,
+                    "covered_boundary_conditions": 0,
+                    "notes": "",
+                }),
+                "notes": normalized_ecp_bva.get("notes", ""),
+            }
+            merged["meta"] = {
+                "technique": "ep_bva",
+                "model": request.model,
+                "temperature": float(request.temperature),
+                "input_type": request.input_type.value,
+                "prompt_version": request.prompt_version,
+            }
+            validated = _validate_by_technique(merged, "ep_bva")
             payload = json.dumps({"data": validated})
             yield f"event: done\ndata: {payload}\n\n"
         except Exception as exc:

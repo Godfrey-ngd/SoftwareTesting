@@ -181,6 +181,8 @@ button:hover {
   font-size: 13px;
   line-height: 1.6;
   flex: 1;
+  min-height: 180px;
+  max-height: 45vh;
 }
 
 .footer {

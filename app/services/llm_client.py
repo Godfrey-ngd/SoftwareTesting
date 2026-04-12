@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import time
 from typing import Any, Dict
 
@@ -79,9 +80,29 @@ class LLMClient:
     def _parse_json(text: str) -> Dict[str, Any]:
         try:
             return json.loads(text)
-        except json.JSONDecodeError:
-            start = text.find("{")
-            end = text.rfind("}")
+        except json.JSONDecodeError as e:
+            cleaned_text = text.strip()
+
+            start = cleaned_text.find("{")
+            end = cleaned_text.rfind("}")
+
             if start != -1 and end != -1 and start < end:
-                return json.loads(text[start : end + 1])
-            raise ValueError("Model output is not valid JSON")
+                json_part = cleaned_text[start : end + 1]
+                try:
+                    return json.loads(json_part)
+                except json.JSONDecodeError:
+                    json_part = json_part.replace("'", '"')
+                    json_part = re.sub(r",\s*}", "}", json_part)
+                    json_part = re.sub(r",\s*]", "]", json_part)
+                    json_part = re.sub(r"#.*$", "", json_part, flags=re.MULTILINE)
+                    json_part = re.sub(r"//.*$", "", json_part, flags=re.MULTILINE)
+                    try:
+                        return json.loads(json_part)
+                    except json.JSONDecodeError:
+                        json_part = re.sub(r",\s*}", "}", json_part)
+                        json_part = re.sub(r",\s*]", "]", json_part)
+                        try:
+                            return json.loads(json_part)
+                        except json.JSONDecodeError:
+                            raise ValueError(f"Model output is not valid JSON: {e}")
+            raise ValueError(f"Model output is not valid JSON: {e}")
