@@ -23,9 +23,10 @@ The focus is on tool architecture, prompt iteration, and experimental analysis (
 
 ## 3. System Architecture
 
-- Web UI (Jinja2): Simple form for requirement input.
-- API (FastAPI): Endpoint that calls the LLM and returns JSON.
-- Prompt Manager: Versioned prompt templates (V1/V2/V3).
+- Web UI (Jinja2): Simple form for requirement input and codebase context input.
+- API (FastAPI): Endpoints that call the LLM and return structured JSON.
+- Prompt Manager: Versioned prompt templates (V1-V4) plus specialized multi-step prompts for EP/BVA and Decision Table.
+- Streaming: Server-Sent Events (SSE) support for real-time output streaming.
 - Logging: Store request metadata (model, temperature, prompt version, time).
 
 ## 4. Functional Requirements
@@ -98,7 +99,10 @@ Response JSON:
 - V1: Extract variables + EP + BVA + test cases.
 - V2: Force JSON schema and explicit valid/invalid partitions.
 - V3: Add self-check (missing boundaries, invalid cases, contradictions).
-- V4: Add input_type + technique selection (EP/BVA, decision table, state transition, combinatorial) with stricter JSON-only output.
+- V4: Add input_type + technique selection (EP/BVA, decision table, state transition, combinatorial) with stricter JSON-only output and stronger self-check.
+- Specialized multi-step prompts:
+  - EP/BVA uses two-step generation: (1) ECP+BVA analysis, (2) test case generation from analysis.
+  - Decision Table uses three-step generation: (1) conditions/actions, (2) rules, (3) test cases.
 
 ## 8. Example Prompt (V1)
 

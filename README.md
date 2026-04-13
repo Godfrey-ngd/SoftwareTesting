@@ -82,7 +82,11 @@ Request JSON (codebase input):
 
 Response JSON: see `docs/output_schema.json`.
 
+### POST `/api/generate-stream`
+
+Same request body as `/api/generate`. Returns Server-Sent Events (SSE) stream with intermediate steps.
+
 ## Notes
 
 - For OpenAI-compatible proxies, keep the base URL ending with /v1.
-- Prefer prompt version `v4` for technique selection and strict JSON.
+- Prompt version `v4` is the default and supports technique selection with strict JSON-only output.

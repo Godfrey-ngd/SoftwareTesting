@@ -1,227 +1,370 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "LLM Black-Box Testing Output",
-  "type": "object",
-  "required": [
-    "input_variables",
-    "equivalence_partitions",
-    "boundary_values",
-    "test_cases",
-    "notes"
+  "description": "Schema documentation for LLM Black-Box Testing Tool outputs. Different techniques use different response schemas.",
+  "oneOf": [
+    {"$ref": "#/definitions/EPBVAResponse"},
+    {"$ref": "#/definitions/DecisionTableResponse"},
+    {"$ref": "#/definitions/CombinatorialResponse"},
+    {"$ref": "#/definitions/StateTransitionResponse"},
+    {"$ref": "#/definitions/StateTransitionErrorResponse"}
   ],
-  "additionalProperties": false,
-  "properties": {
-    "input_variables": {
-      "type": "array",
-      "items": { "type": "string" }
-    },
-    "equivalence_partitions": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["id", "description", "valid"],
-        "additionalProperties": false,
-        "properties": {
-          "id": { "type": "string" },
-          "description": { "type": "string" },
-          "valid": { "type": "boolean" },
-          "representative_values": { "type": ["array", "null"] }
-        }
-      }
-    },
-    "boundary_values": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["variable"],
-        "additionalProperties": false,
-        "properties": {
-          "variable": { "type": "string" },
-          "values": { "type": ["array", "null"] },
-          "boundary_type": { "type": ["string", "null"] },
-          "value": {},
-          "expected_valid": { "type": ["boolean", "null"] }
-        }
-      }
-    },
-    "conditions": {
-      "type": ["array", "null"],
-      "items": {
-        "type": "object",
-        "required": ["id", "description"],
-        "additionalProperties": false,
-        "properties": {
-          "id": { "type": "string" },
-          "description": { "type": "string" }
-        }
-      }
-    },
-    "actions": {
-      "type": ["array", "null"],
-      "items": {
-        "type": "object",
-        "required": ["id", "description"],
-        "additionalProperties": false,
-        "properties": {
-          "id": { "type": "string" },
-          "description": { "type": "string" }
-        }
-      }
-    },
-    "rules": {
-      "type": ["array", "null"],
-      "items": {
-        "type": "object",
-        "required": ["id", "conditions", "actions", "description"],
-        "additionalProperties": false,
-        "properties": {
-          "id": { "type": "string" },
-          "conditions": { "type": "object" },
-          "actions": { "type": "object" },
-          "description": { "type": "string" }
-        }
-      }
-    },
-    "factors": {
-      "type": ["array", "null"],
-      "items": {
-        "type": "object",
-        "required": ["name", "values"],
-        "additionalProperties": false,
-        "properties": {
-          "name": { "type": "string" },
-          "values": { "type": "array" }
-        }
-      }
-    },
-    "constraints": {
-      "type": ["array", "null"],
-      "items": { "type": "string" }
-    },
-    "coverage_strategy": {
-      "type": ["object", "null"],
-      "required": ["method", "strength"],
+  "definitions": {
+    "EPBVAResponse": {
+      "type": "object",
+      "required": ["input_variables", "equivalence_partitions", "boundary_values", "test_cases", "coverage_summary", "notes", "meta"],
       "additionalProperties": false,
       "properties": {
-        "method": { "type": "string" },
-        "strength": { "type": "integer" }
-      }
-    },
-    "coverage_summary": {
-      "type": ["object", "null"],
-      "required": ["method", "strength", "constraints_applied"],
-      "additionalProperties": false,
-      "properties": {
-        "method": { "type": "string" },
-        "strength": { "type": "integer" },
-        "constraints_applied": { "type": "boolean" },
-        "excluded_pairs": { "type": ["array", "null"] }
-      }
-    },
-    "states": {
-      "type": ["array", "null"],
-      "items": { "type": "string" }
-    },
-    "events": {
-      "type": ["array", "null"],
-      "items": { "type": "string" }
-    },
-    "transitions": {
-      "type": ["array", "null"],
-      "items": {
-        "type": "object",
-        "required": ["id", "from_state", "event", "guard", "to_state", "action"],
-        "additionalProperties": false,
-        "properties": {
-          "id": { "type": "string" },
-          "from_state": { "type": "string" },
-          "event": { "type": "string" },
-          "guard": { "type": "string" },
-          "to_state": { "type": "string" },
-          "action": { "type": "string" }
-        }
-      }
-    },
-    "coverage_summary": {
-      "type": ["object", "null"],
-      "required": [
-        "total_equivalence_partitions",
-        "covered_partitions",
-        "total_boundary_conditions",
-        "covered_boundary_conditions",
-        "notes"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "total_equivalence_partitions": { "type": "integer" },
-        "covered_partitions": { "type": "integer" },
-        "total_boundary_conditions": { "type": "integer" },
-        "covered_boundary_conditions": { "type": "integer" },
-        "notes": { "type": "string" }
-      }
-    },
-    "test_cases": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["id", "scenario", "inputs", "expected"],
-        "additionalProperties": false,
-        "properties": {
-          "id": { "type": "string" },
-          "covers_rule": { "type": ["string", "null"] },
-          "scenario": { "type": "string" },
-          "inputs": { "type": "object" },
-          "combination": { "type": ["object", "null"] },
-          "covers_pairs": {
-            "type": ["array", "null"],
-            "items": {
-              "type": "array",
-              "items": { "type": "string" }
-            }
-          },
-          "initial_state": { "type": ["string", "null"] },
-          "steps": {
-            "type": ["array", "null"],
-            "items": {
-              "type": "object",
-              "required": ["event", "expected_state"],
-              "additionalProperties": false,
-              "properties": {
-                "event": { "type": "string" },
-                "data": { "type": ["object", "null"] },
-                "expected_state": { "type": "string" },
-                "expected_output": { "type": ["string", "null"] }
-              }
-            }
-          },
-          "expected": { "type": "string" }
-        }
-      }
-    },
-    "meta": {
-      "type": ["object", "null"],
-      "required": [
-        "technique",
-        "model",
-        "temperature"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "technique": {
-          "type": "string",
-          "enum": [
-            "ep_bva",
-            "decision_table",
-            "state_transition",
-            "combinatorial"
-          ]
+        "input_variables": {
+          "type": "array",
+          "items": { "type": "string" }
         },
-        "input_type": { "type": ["string", "null"], "enum": ["requirements", "codebase", null] },
-        "prompt_version": { "type": ["string", "null"] },
-        "model": { "type": "string" },
-        "temperature": { "type": "number" }
+        "equivalence_partitions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "description", "valid"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string" },
+              "description": { "type": "string" },
+              "valid": { "type": "boolean" },
+              "representative_values": { "type": ["array", "null"] }
+            }
+          }
+        },
+        "boundary_values": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["variable"],
+            "additionalProperties": false,
+            "properties": {
+              "variable": { "type": "string" },
+              "values": { "type": ["array", "null"] },
+              "boundary_type": { "type": ["string", "null"] },
+              "value": {},
+              "expected_valid": { "type": ["boolean", "null"] }
+            }
+          }
+        },
+        "test_cases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "scenario", "inputs", "expected"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string" },
+              "covers_rule": { "type": ["string", "null"] },
+              "scenario": { "type": "string" },
+              "inputs": { "type": "object" },
+              "combination": { "type": ["object", "null"] },
+              "covers_pairs": {
+                "type": ["array", "null"],
+                "items": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              },
+              "expected": { "type": "string" }
+            }
+          }
+        },
+        "coverage_summary": {
+          "type": "object",
+          "required": ["total_equivalence_partitions", "covered_partitions", "total_boundary_conditions", "covered_boundary_conditions", "notes"],
+          "additionalProperties": false,
+          "properties": {
+            "total_equivalence_partitions": { "type": "integer" },
+            "covered_partitions": { "type": "integer" },
+            "total_boundary_conditions": { "type": "integer" },
+            "covered_boundary_conditions": { "type": "integer" },
+            "notes": { "type": "string" }
+          }
+        },
+        "notes": { "type": "string" },
+        "meta": {
+          "type": "object",
+          "required": ["technique", "model", "temperature"],
+          "additionalProperties": false,
+          "properties": {
+            "technique": { "type": "string", "enum": ["ep_bva"] },
+            "model": { "type": "string" },
+            "temperature": { "type": "number" },
+            "input_type": { "type": ["string", "null"] },
+            "prompt_version": { "type": ["string", "null"] }
+          }
+        }
       }
     },
-    "notes": { "type": "string" }
+    "DecisionTableResponse": {
+      "type": "object",
+      "required": ["input_variables", "conditions", "actions", "rules", "test_cases", "coverage", "notes", "meta"],
+      "additionalProperties": false,
+      "properties": {
+        "input_variables": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "conditions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "id": { "type": ["string", "null"] },
+              "description": { "type": "string" },
+              "values": { "type": ["array", "null"] }
+            }
+          }
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "id": { "type": ["string", "null"] },
+              "description": { "type": "string" }
+            }
+          }
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "rule_id": { "type": ["string", "null"] },
+              "condition_entries": { "type": "array" },
+              "action_entries": { "type": "array", "items": { "type": "string" } },
+              "description": { "type": "string" }
+            }
+          }
+        },
+        "test_cases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "id": { "type": ["string", "null"] },
+              "covers_rule": { "type": ["string", "null"] },
+              "inputs": { "type": ["object", "null"] },
+              "expected": { "type": "string" }
+            }
+          }
+        },
+        "coverage": {
+          "type": "object"
+        },
+        "notes": { "type": "string" },
+        "meta": {
+          "type": "object",
+          "required": ["technique", "model", "temperature"],
+          "additionalProperties": false,
+          "properties": {
+            "technique": { "type": "string", "enum": ["decision_table"] },
+            "model": { "type": "string" },
+            "temperature": { "type": "number" },
+            "input_type": { "type": ["string", "null"] },
+            "prompt_version": { "type": ["string", "null"] }
+          }
+        }
+      }
+    },
+    "CombinatorialResponse": {
+      "type": "object",
+      "required": ["parameters", "constraints", "test_cases", "coverage", "meta"],
+      "additionalProperties": false,
+      "properties": {
+        "parameters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "values"],
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string" },
+              "values": { "type": "array" },
+              "type": { "type": ["string", "null"] }
+            }
+          }
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "description"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string" },
+              "description": { "type": "string" },
+              "invalid_combinations": { "type": "array" }
+            }
+          }
+        },
+        "test_cases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "description", "inputs", "expected"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string" },
+              "description": { "type": "string" },
+              "inputs": { "type": "object" },
+              "expected": { "type": "string" }
+            }
+          }
+        },
+        "coverage": {
+          "type": "object",
+          "required": ["total_pairs", "covered_pairs", "pairwise_coverage_percent", "notes"],
+          "additionalProperties": false,
+          "properties": {
+            "total_pairs": { "type": "integer" },
+            "covered_pairs": { "type": "integer" },
+            "pairwise_coverage_percent": { "type": "number" },
+            "notes": { "type": "string" }
+          }
+        },
+        "meta": {
+          "type": "object",
+          "required": ["technique", "strategy", "model", "temperature"],
+          "additionalProperties": false,
+          "properties": {
+            "technique": { "type": "string", "enum": ["combinatorial"] },
+            "strategy": { "type": "string", "enum": ["pairwise"] },
+            "model": { "type": "string" },
+            "temperature": { "type": "number" },
+            "input_type": { "type": ["string", "null"] },
+            "prompt_version": { "type": ["string", "null"] }
+          }
+        }
+      }
+    },
+    "StateTransitionResponse": {
+      "type": "object",
+      "required": ["states", "events", "transitions", "test_cases", "coverage", "meta"],
+      "additionalProperties": false,
+      "properties": {
+        "states": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "name", "description"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "description": { "type": "string" }
+            }
+          }
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "name", "description"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "description": { "type": "string" }
+            }
+          }
+        },
+        "transitions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "from_state", "to_state", "event", "output"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string" },
+              "from_state": { "type": "string" },
+              "to_state": { "type": "string" },
+              "event": { "type": "string" },
+              "guard": { "type": ["string", "null"] },
+              "action": { "type": ["string", "null"] },
+              "output": { "type": "string" }
+            }
+          }
+        },
+        "test_cases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "description", "initial_state", "event", "context", "expected_state", "expected_output"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string" },
+              "description": { "type": "string" },
+              "initial_state": { "type": "string" },
+              "event": { "type": "string" },
+              "context": { "type": "object" },
+              "expected_state": { "type": "string" },
+              "expected_output": { "type": "string" }
+            }
+          }
+        },
+        "coverage": {
+          "type": "object",
+          "required": ["total_transitions", "covered_transitions", "uncovered_transition_ids", "notes"],
+          "additionalProperties": false,
+          "properties": {
+            "total_transitions": { "type": "integer" },
+            "covered_transitions": { "type": "integer" },
+            "uncovered_transition_ids": { "type": "array", "items": { "type": "string" } },
+            "notes": { "type": "string" }
+          }
+        },
+        "meta": {
+          "type": "object",
+          "required": ["technique", "model", "temperature"],
+          "additionalProperties": false,
+          "properties": {
+            "technique": { "type": "string", "enum": ["state_transition"] },
+            "model": { "type": "string" },
+            "temperature": { "type": "number" },
+            "input_type": { "type": ["string", "null"] },
+            "prompt_version": { "type": ["string", "null"] }
+          }
+        }
+      }
+    },
+    "StateTransitionErrorResponse": {
+      "type": "object",
+      "required": ["error", "coverage", "meta"],
+      "additionalProperties": false,
+      "properties": {
+        "error": { "type": "string" },
+        "coverage": {
+          "type": "object",
+          "required": ["total_transitions", "covered_transitions", "uncovered_transition_ids", "notes"],
+          "additionalProperties": false,
+          "properties": {
+            "total_transitions": { "type": "integer" },
+            "covered_transitions": { "type": "integer" },
+            "uncovered_transition_ids": { "type": "array", "items": { "type": "string" } },
+            "notes": { "type": "string" }
+          }
+        },
+        "meta": {
+          "type": "object",
+          "required": ["technique", "model", "temperature"],
+          "additionalProperties": false,
+          "properties": {
+            "technique": { "type": "string", "enum": ["state_transition"] },
+            "model": { "type": "string" },
+            "temperature": { "type": "number" },
+            "input_type": { "type": ["string", "null"] },
+            "prompt_version": { "type": ["string", "null"] }
+          }
+        }
+      }
+    }
   }
 }
