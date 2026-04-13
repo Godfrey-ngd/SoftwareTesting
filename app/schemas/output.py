@@ -40,30 +40,30 @@ class BoundaryValue(BaseModel):
 
 
 class DecisionTableCondition(BaseModel):
-    id: str
-    description: str
+    id: Optional[str] = None
+    description: Optional[str] = ""
     values: Optional[List[Any]] = None
 
     class Config:
-        extra = "forbid"
+        extra = "ignore"
 
 
 class DecisionTableAction(BaseModel):
-    id: str
-    description: str
+    id: Optional[str] = None
+    description: Optional[str] = ""
 
     class Config:
-        extra = "forbid"
+        extra = "ignore"
 
 
 class DecisionTableRule(BaseModel):
-    rule_id: str
+    rule_id: Optional[str] = None
     condition_entries: List[Any]
     action_entries: List[str]
-    description: str
+    description: Optional[str] = ""
 
     class Config:
-        extra = "forbid"
+        extra = "ignore"
 
 
 class CombinatorialParameter(BaseModel):
@@ -163,21 +163,21 @@ class DecisionTableResponse(BaseModel):
     actions: List[DecisionTableAction]
     rules: List[DecisionTableRule]
     class DecisionTableTestCase(BaseModel):
-        id: str
-        covers_rule: str
-        inputs: Dict[str, Any]
-        expected: str
+        id: Optional[str] = None
+        covers_rule: Optional[str] = None
+        inputs: Optional[Dict[str, Any]] = None
+        expected: Optional[str] = ""
 
         class Config:
-            extra = "forbid"
+            extra = "ignore"
 
     test_cases: List[DecisionTableTestCase]
     coverage: Dict[str, Any]
-    notes: str = ""
-    meta: Meta
+    notes: Optional[str] = ""
+    meta: Optional[Meta] = None
 
     class Config:
-        extra = "forbid"
+        extra = "ignore"
 
 
 class CombinatorialTestCase(BaseModel):
@@ -193,7 +193,7 @@ class CombinatorialTestCase(BaseModel):
 class CombinatorialCoverage(BaseModel):
     total_pairs: int
     covered_pairs: int
-    pairwise_coverage_percent: int
+    pairwise_coverage_percent: float
     notes: str = ""
 
     class Config:

@@ -22,6 +22,8 @@ router = APIRouter()
 def generate(request: GenerateRequest):
     if request.technique.value == "ep_bva":
         return _generate_ep_bva_twostep(request)
+    if request.technique.value == "decision_table":
+        return _generate_decision_table_threestep(request)
     prompt = PromptManager.get_prompt(
         version=request.prompt_version,
         input_type=request.input_type.value,
@@ -117,6 +119,62 @@ def _generate_ep_bva_twostep(request: GenerateRequest) -> dict:
     return _validate_by_technique(merged, "ep_bva")
 
 
+def _generate_decision_table_threestep(request: GenerateRequest) -> dict:
+    prompt_ca = PromptManager.get_prompt_conditions_actions(
+        input_type=request.input_type.value,
+        requirement_text=request.requirements,
+        code_context=request.code_context,
+    )
+    client = LLMClient()
+
+    try:
+        ca_data = client.generate_json(
+            prompt=prompt_ca,
+            model=request.model,
+            temperature=request.temperature,
+        )
+        prompt_rules = PromptManager.get_prompt_rules_from_conditions_actions(
+            input_type=request.input_type.value,
+            requirement_text=request.requirements,
+            code_context=request.code_context,
+            conditions_actions_result=json.dumps(ca_data, ensure_ascii=False),
+        )
+        rules_data = client.generate_json(
+            prompt=prompt_rules,
+            model=request.model,
+            temperature=request.temperature,
+        )
+        prompt_tc = PromptManager.get_prompt_tc_from_rules(
+            input_type=request.input_type.value,
+            requirement_text=request.requirements,
+            code_context=request.code_context,
+            conditions_actions_result=json.dumps(ca_data, ensure_ascii=False),
+            rules_result=json.dumps(rules_data, ensure_ascii=False),
+        )
+        tc_data = client.generate_json(
+            prompt=prompt_tc,
+            model=request.model,
+            temperature=request.temperature,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    merged = {
+        "decision_tables": tc_data.get("decision_tables", []),
+        "notes": tc_data.get("notes", ""),
+        "meta": {
+            "technique": "decision_table",
+            "model": request.model,
+            "temperature": float(request.temperature),
+            "input_type": request.input_type.value,
+            "prompt_version": request.prompt_version,
+        },
+    }
+    return merged
+
+
 def _normalize_test_cases_only(data: dict) -> dict:
     test_cases = data.get("test_cases")
     if not isinstance(test_cases, list):
@@ -163,6 +221,8 @@ def _normalize_test_cases_only(data: dict) -> dict:
 def generate_stream(request: GenerateRequest) -> StreamingResponse:
     if request.technique.value == "ep_bva":
         return _generate_stream_ep_bva_twostep(request)
+    if request.technique.value == "decision_table":
+        return _generate_stream_decision_table_threestep(request)
 
     prompt = PromptManager.get_prompt(
         version=request.prompt_version,
@@ -305,6 +365,104 @@ def _generate_stream_ep_bva_twostep(request: GenerateRequest) -> StreamingRespon
     )
 
 
+def _generate_stream_decision_table_threestep(request: GenerateRequest) -> StreamingResponse:
+    client = LLMClient()
+
+    def event_stream():
+        try:
+            yield ": init\n\n"
+            yield ": step1_ca\n\n"
+
+            prompt_ca = PromptManager.get_prompt_conditions_actions(
+                input_type=request.input_type.value,
+                requirement_text=request.requirements,
+                code_context=request.code_context,
+            )
+            chunks1 = []
+            for chunk in client.stream_text(
+                prompt=prompt_ca,
+                model=request.model,
+                temperature=request.temperature,
+            ):
+                chunks1.append(chunk)
+                payload = json.dumps({"text": chunk, "step": "conditions_actions"})
+                yield f"event: chunk\ndata: {payload}\n\n"
+
+            full_text1 = "".join(chunks1)
+            ca_data = client._parse_json(full_text1)
+
+            yield ": step2_rules\n\n"
+
+            prompt_rules = PromptManager.get_prompt_rules_from_conditions_actions(
+                input_type=request.input_type.value,
+                requirement_text=request.requirements,
+                code_context=request.code_context,
+                conditions_actions_result=json.dumps(ca_data, ensure_ascii=False),
+            )
+            chunks2 = []
+            for chunk in client.stream_text(
+                prompt=prompt_rules,
+                model=request.model,
+                temperature=request.temperature,
+            ):
+                chunks2.append(chunk)
+                payload = json.dumps({"text": chunk, "step": "rules"})
+                yield f"event: chunk\ndata: {payload}\n\n"
+
+            full_text2 = "".join(chunks2)
+            rules_data = client._parse_json(full_text2)
+
+            yield ": step3_tc\n\n"
+
+            prompt_tc = PromptManager.get_prompt_tc_from_rules(
+                input_type=request.input_type.value,
+                requirement_text=request.requirements,
+                code_context=request.code_context,
+                conditions_actions_result=json.dumps(ca_data, ensure_ascii=False),
+                rules_result=json.dumps(rules_data, ensure_ascii=False),
+            )
+            chunks3 = []
+            for chunk in client.stream_text(
+                prompt=prompt_tc,
+                model=request.model,
+                temperature=request.temperature,
+            ):
+                chunks3.append(chunk)
+                payload = json.dumps({"text": chunk, "step": "tc"})
+                yield f"event: chunk\ndata: {payload}\n\n"
+
+            full_text3 = "".join(chunks3)
+            tc_data = client._parse_json(full_text3)
+
+            merged = {
+                "decision_tables": tc_data.get("decision_tables", []),
+                "notes": tc_data.get("notes", ""),
+                "meta": {
+                    "technique": "decision_table",
+                    "model": request.model,
+                    "temperature": float(request.temperature),
+                    "input_type": request.input_type.value,
+                    "prompt_version": request.prompt_version,
+                },
+            }
+            payload = json.dumps({"data": merged})
+            yield f"event: done\ndata: {payload}\n\n"
+        except Exception as exc:
+            payload = json.dumps({"error": str(exc)})
+            yield f"event: error\ndata: {payload}\n\n"
+
+    headers = {
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no",
+    }
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers=headers,
+    )
+
+
 def _normalize_output(data: dict, technique: str) -> dict:
     # State-transition has its own strict schema; avoid EP/BVA normalization on it.
     if technique == "state_transition":
@@ -317,7 +475,7 @@ def _normalize_output(data: dict, technique: str) -> dict:
         return data
 
     if technique == "decision_table":
-        return _normalize_decision_table(data)
+        return data
 
     data = _normalize_top_level(data)
 

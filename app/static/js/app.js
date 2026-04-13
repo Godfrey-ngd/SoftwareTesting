@@ -30,6 +30,114 @@ inputTypeEl?.addEventListener("change", () => {
 
 syncInputVisibility();
 
+function formatDecisionTable(dt) {
+  if (!dt.rules || !Array.isArray(dt.rules) || dt.rules.length === 0) {
+    return "";
+  }
+  const conditions = dt.conditions || [];
+  const actions = dt.actions || [];
+  const colWidths = [];
+
+  for (const c of conditions) {
+    const id = c.id || "";
+    const desc = c.description || "";
+    colWidths.push(Math.max(id.length, desc.length, 8));
+  }
+  for (const a of actions) {
+    const id = a.id || "";
+    const desc = a.description || "";
+    colWidths.push(Math.max(id.length, desc.length, 8));
+  }
+
+  const separator = "+" + colWidths.map(w => "-".repeat(w + 2)).join("+") + "+";
+  const headerRow = "|" + conditions.map((c, i) => " " + (c.id || "").padEnd(colWidths[i]) + " ").join("|") + "|" + actions.map((a, i) => " " + (a.id || "").padEnd(colWidths[conditions.length + i]) + " ").join("|") + "|";
+
+  const rows = [];
+  for (const rule of dt.rules) {
+    const entries = [...(rule.condition_entries || []), ...(rule.action_entries || [])];
+    const row = "|" + entries.map((v, i) => " " + String(v || "-").padEnd(colWidths[i]) + " ").join("|") + "|";
+    rows.push(row);
+  }
+
+  return separator + "\n" + headerRow + "\n" + separator + "\n" + rows.join("\n" + separator + "\n") + "\n" + separator;
+}
+
+function formatDecisionTables(data) {
+  if (!data.decision_tables || !Array.isArray(data.decision_tables) || data.decision_tables.length === 0) {
+    return "";
+  }
+  const lines = [];
+  for (const dt of data.decision_tables) {
+    const name = dt.name || "Decision Table";
+    lines.push("=== " + name + " ===");
+    const table = formatDecisionTable(dt);
+    if (table) {
+      lines.push(table);
+    }
+    if (dt.test_cases && Array.isArray(dt.test_cases) && dt.test_cases.length > 0) {
+      lines.push("\nTest Cases:");
+      for (const tc of dt.test_cases) {
+        const inputs = tc.inputs ? JSON.stringify(tc.inputs) : "{}";
+        lines.push("  " + (tc.id || "TC?") + ": " + inputs + " => " + (tc.expected || ""));
+      }
+    }
+    lines.push("");
+  }
+  return lines.join("\n");
+}
+
+function formatOutput(data, technique) {
+  if (technique === "decision_table" && data.decision_tables) {
+    const lines = [];
+    for (const dt of data.decision_tables) {
+      const name = dt.name || "Decision Table";
+      lines.push("=== " + name + " ===");
+
+      if (dt.conditions && dt.conditions.length > 0) {
+        lines.push("Conditions:");
+        for (const c of dt.conditions) {
+          lines.push("  " + (c.id || "?") + ": " + (c.description || "") + " (" + JSON.stringify(c.values || []) + ")");
+        }
+      }
+
+      if (dt.actions && dt.actions.length > 0) {
+        lines.push("Actions:");
+        for (const a of dt.actions) {
+          lines.push("  " + (a.id || "?") + ": " + (a.description || ""));
+        }
+      }
+
+      if (dt.rules && dt.rules.length > 0) {
+        lines.push("Rules:");
+        for (const r of dt.rules) {
+          lines.push("  " + (r.rule_id || "?") + ": " + (r.description || ""));
+          lines.push("    conditions: " + JSON.stringify(r.condition_entries || []));
+          lines.push("    actions: " + JSON.stringify(r.action_entries || []));
+        }
+      }
+
+      if (dt.test_cases && dt.test_cases.length > 0) {
+        lines.push("Test Cases:");
+        for (const tc of dt.test_cases) {
+          lines.push("  " + (tc.id || "?") + ": " + JSON.stringify(tc.inputs || {}) + " => " + (tc.expected || ""));
+        }
+      }
+      lines.push("");
+    }
+    data._formatted = lines.join("\n");
+  }
+  return data;
+}
+
+function displayOutput(data, technique) {
+  const formatted = formatOutput(data, technique);
+  if (formatted._formatted) {
+    outputEl.textContent = formatted._formatted;
+  } else {
+    outputEl.textContent = JSON.stringify(data, null, 2);
+  }
+}
+
 buttonEl.addEventListener("click", async () => {
   const requirements = (requirementsEl?.value || "").trim();
   const codeContext = (codeContextEl?.value || "").trim();
@@ -106,7 +214,6 @@ buttonEl.addEventListener("click", async () => {
         if (eventType === "chunk") {
           outputEl.textContent += payload.text;
         } else if (eventType === "done") {
-          outputEl.textContent = JSON.stringify(payload.data, null, 2);
           setStatus("Done.");
         } else if (eventType === "error") {
           throw new Error(payload.error || "Streaming error");

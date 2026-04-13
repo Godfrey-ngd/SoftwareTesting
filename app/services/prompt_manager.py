@@ -110,8 +110,8 @@ Technique instructions:
        "meta": {{"technique","model","temperature"}}
      }}
    - Suitability detection:
-     - If no stateful behavior is detected, output:
-       {{"error": "No stateful behavior detected. State transition testing is not applicable.", "coverage": ..., "meta": ...}}
+     - If no explicit states are described, infer them from the requirement (e.g., "idle", "processing", "success", "failure", etc.).
+     - Every requirement has some internal state—even a simple "input → output" can be modeled as transitions between implicit states.
    - State modeling:
      - States must be stable internal phases, NOT input values.
      - Do NOT use a flat model with only initial/success/reject. Include at least one intermediate state (e.g., submitted/validating/validation_failed/success).
@@ -160,8 +160,108 @@ Requirement text:
 
 Code context:
 {code_context}
-""",
+"""
     }
+
+    @classmethod
+    def get_prompt_conditions_actions(cls, input_type: str, requirement_text: str, code_context: str) -> str:
+        return f"""You are a black-box testing assistant.
+
+Your task is to identify decision tables from requirements for Decision Table Testing.
+Group related conditions and actions into separate decision tables.
+
+Output MUST be a JSON object with this structure:
+{{{{"decision_tables": [{{"name": "table_name", "conditions": [{{"id": "C1", "description": "...", "values": ["val1", "val2"]}}], "actions": [{{"id": "A1", "description": "..."}}]}}], "notes": ""}}}}
+
+Hard rules:
+- Group conditions and actions into logical decision tables (e.g., "Payment Processing", "Order Approval").
+- Each condition must have id, description, and values (list of possible values).
+- Each action must have id and description.
+- Return strict JSON only (no markdown, no extra text).
+
+Input type: {input_type}
+
+Requirement text:
+{requirement_text}
+
+Code context:
+{code_context}
+"""
+
+    @classmethod
+    def get_prompt_rules_from_conditions_actions(
+        cls,
+        input_type: str,
+        requirement_text: str,
+        code_context: str,
+        conditions_actions_result: str,
+    ) -> str:
+        return f"""You are a black-box testing assistant.
+
+You will receive decision tables (conditions and actions) from step 1.
+Your task is to generate rules for each decision table.
+
+Output MUST be a JSON object with this structure:
+{{{{"decision_tables": [{{"name": "table_name", "rules": [{{"rule_id": "R1", "condition_entries": ["val1", "val2", "-"], "action_entries": ["X", ""], "description": "..."}}]}}]}}}}
+
+Hard rules:
+- For each decision table, generate rules combining condition values.
+- condition_entries must align with conditions array order.
+- action_entries must align with actions array order; use "X" for executed, "" for not executed.
+- Use "-" for don't care conditions.
+- Return strict JSON only (no markdown, no extra text).
+
+IMPORTANT: Use the following decision tables to generate rules:
+
+{conditions_actions_result}
+
+Input type: {input_type}
+
+Requirement text:
+{requirement_text}
+
+Code context:
+{code_context}
+"""
+
+    @classmethod
+    def get_prompt_tc_from_rules(
+        cls,
+        input_type: str,
+        requirement_text: str,
+        code_context: str,
+        conditions_actions_result: str,
+        rules_result: str,
+    ) -> str:
+        return f"""You are a black-box testing assistant.
+
+You will receive decision tables with rules from previous steps.
+Your task is to generate test cases for each decision table.
+
+Output MUST be a JSON object with this structure:
+{{{{"decision_tables": [{{"name": "table_name", "test_cases": [{{"id": "TC1", "covers_rule": "R1", "inputs": {{"var1": "concrete_value1", "var2": "concrete_value2"}}, "expected": "concrete outcome description"}}]}}]}}}}
+
+Hard rules:
+- Generate one test case per rule.
+- inputs must use CONCRETE VALUES that satisfy the rule's condition_entries.
+- expected must describe the concrete outcome based on executed actions.
+- Return strict JSON only (no markdown, no extra text).
+
+IMPORTANT:
+1) Decision tables structure:
+{conditions_actions_result}
+
+2) Decision tables with rules:
+{rules_result}
+
+Input type: {input_type}
+
+Requirement text:
+{requirement_text}
+
+Code context:
+{code_context}
+"""
 
     @classmethod
     def get_prompt(
